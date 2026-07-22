@@ -165,7 +165,11 @@ class manager {
             file_put_contents($fname, $buff . "\n", FILE_APPEND | LOCK_EX);
         }
 
-        return (!empty($response) && isset($response->ok) && ($response->ok == true));
+        // MAX API success uses message.body.mid; tgext path uses ok=true.
+        return !empty($response) && (
+            isset($response->message->body->mid) ||
+            (!empty($response->ok) && $response->ok == true)
+        );
     }
 
     /**
