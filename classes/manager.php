@@ -490,7 +490,7 @@ class manager {
          ],
         ];
 
-        $location = 'https://platform-api.max.ru/' . $command;
+        $location = 'https://platform-api2.max.ru/' . $command;
 
         // Execute API command with specified HTTP method.
         if ($method == 1) {
