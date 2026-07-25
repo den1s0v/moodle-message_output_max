@@ -46,33 +46,47 @@ $string['botcerts'] = '📜 <b>Ваши сертификаты</b>
 $string['botcertselect'] = '📥 Выберите сертификат';
 $string['botcertyour'] = '💾 Ваш сертификат';
 $string['botclear'] = '/clear - очистить историю переписки с ИИ';
-$string['botenrols'] = '🎓 <b>Участие в курсах</b>';
+$string['botcmd_ask'] = '/ask и /clear (ИИ-ассистент)';
+$string['botcmd_certificates'] = '/certificates';
+$string['botcmd_courses'] = '/courses';
+$string['botcmd_events'] = '/events';
+$string['botcmd_faq'] = '/faq';
+$string['botcmd_info'] = '/info';
+$string['botcmd_lang'] = '/lang';
+$string['botcmd_message'] = '/message';
+$string['botcmd_progress'] = '/progress (нужен показ completion)';
+$string['botcmd_students'] = '/students';
+$string['botcmd_userid'] = '/userid';
+$string['botcommandsheading'] = 'Команды бота';
+$string['botcourses'] = '/courses - мои курсы';
+$string['botenrols'] = '🎓 <b>Мои курсы</b>
+';
 $string['botentertext'] = '✏️ Введите текст сообщения';
 $string['botevents'] = '🗓 <b>Предстоящие события</b>
 
 ';
+$string['boteventshelp'] = '/events - предстоящие события';
 $string['botfaq'] = '⁉️ Часто задаваемые вопросы:';
+$string['botfaqhelp'] = '/faq - часто задаваемые вопросы';
 $string['botfaqtext'] = '';
-$string['bothelp'] = '👓 Подсказки
-/info - информация о платформе
-/lang - переключение языка
-/faq - часто задаваемые вопросы
-/courses - список всех курсов
-/enrols - участие в курсах
-/events - предстоящие события
-/progress - статус элементов курса';
-$string['bothelp_anonymous'] = '👓 Подсказки
-/info - информация о платформе
-/faq  - часто задаваемые вопросы';
+$string['bothelp'] = '👓 Подсказки';
+$string['bothelp_anonymous'] = '👓 Подсказки';
+$string['bothelpheader'] = '👓 Подсказки';
 $string['botidontknow'] = 'Не знаю что это такое 🤷🏻 /help';
+$string['botinfo'] = '/info - информация о платформе';
 $string['botlang'] = '🈯 Выбрать язык ({$a})';
+$string['botlanghelp'] = '/lang - переключение языка';
 $string['botmessagehelp'] = '/message - отправить групповое сообщение';
 $string['botmsgall'] = '🔺 Всем студентам курса';
 $string['botpay'] = '🏦 Выберите сумму {$a}';
 $string['botpaydesc'] = 'На поддержание учебной платформы';
 $string['botpaytitle'] = '🕉 Пожертвование 🕉';
+$string['botprogress'] = '/progress - статус элементов курса';
+$string['botstudents'] = '/students - отчёт о персональных данных';
 $string['botuserid'] = '👑 Пользователь 🆔 {$a}';
 $string['botuseridhelp'] = '/userid - сменить пользователя';
+$string['commanddisabled'] = '❌ Эта команда отключена. /help';
+$string['miniappdisabled'] = 'Mini-app отключён';
 $string['configfullmessagehtml'] = 'Получать сообщение из "$eventdata->fullmessagehtml" (если доступно), или из "fullmessage", если не установлено.';
 $string['configmaxlog'] = 'Записывать отладочную информацию в файл {$a}/max.log.';
 $string['configmaxlogdump'] = 'В отладочных целях записывать сообщение в файл лога.';
@@ -167,8 +181,14 @@ $string['setupinstructions'] = 'Создайте новый бот MAX, испо
 Используйте команду "/newbot" в MAX для начала создания бота. Вам надо будет задать название бота, например "{$a->name}" и уникальное имя бота, например "{$a->username}".';
 $string['setwebhook'] = 'Установить MAX webhook';
 $string['sitebotaddtogroup'] = 'Пригласить нового пользователя в новостной канал или группу';
+$string['sitebotcommands'] = 'Включённые команды бота';
+$string['sitebotcommands_desc'] = 'Выберите, какие команды бота доступны пользователям. /start и /help всегда доступны. По умолчанию ни одна опциональная команда не включена.';
+$string['sitebotenableminiapp'] = 'Включить mini-app';
+$string['sitebotenableminiapp_desc'] = 'Разрешить доступ к MAX mini-app. Канонический URL: {$a}';
 $string['sitebotname'] = 'Название бота для сайта';
 $string['sitebotsecret'] = 'Секрет webhook';
+$string['sitebotshowcompletion'] = 'Показывать completion курсов';
+$string['sitebotshowcompletion_desc'] = 'Показывать процент completion в /courses и включать /progress. По умолчанию выключено.';
 $string['sitebottoken'] = 'Токен бота для сайта';
 $string['sitebottokennotsetup'] = 'Токен бота для сайта должен быть указан в настройках плагина.';
 $string['sitebotusername'] = 'Ник бота для сайта';

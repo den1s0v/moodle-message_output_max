@@ -111,28 +111,32 @@ if (
         }
         $text .= PHP_EOL . get_string('enter_phone', 'message_max');
     } else {
+        $row = [];
+        if (message_max_is_command_enabled('info')) {
+            $row[] = [
+                'type' => 'message',
+                'text' => '/info',
+            ];
+        }
+        if (message_max_is_command_enabled('lang')) {
+            $row[] = [
+                'type' => 'message',
+                'text' => '/lang',
+            ];
+        }
+        $buttons = [];
+        if ($row) {
+            $buttons[] = $row;
+        }
+        $buttons[] = [[
+            'type' => 'message',
+            'text' => '/help',
+        ]];
         $attachments = [
         [
         'type' => 'inline_keyboard',
         'payload' => [
-            'buttons' => [
-                [
-                    [
-                        'type' => 'message',
-                        'text' => '/info',
-                    ],
-                    [
-                        'type' => 'message',
-                        'text' => '/lang',
-                    ],
-                ],
-                [
-                    [
-                        'type' => 'message',
-                        'text' => '/help',
-                    ],
-                ],
-            ],
+            'buttons' => $buttons,
         ],
         ],
         ];
@@ -148,30 +152,38 @@ if (
     }
     if ($payload == 'clear') {
         $text = '✅ ' . get_string('selectanaction');
-        $attachments = [
-        [
-        'type' => 'inline_keyboard',
-        'payload' => [
-            'buttons' => [
-                [
+        if (message_max_is_command_enabled('clear')) {
+            $attachments = [
+            [
+            'type' => 'inline_keyboard',
+            'payload' => [
+                'buttons' => [
                     [
-                        'type' => 'message',
-                        'text' => '/clear',
+                        [
+                            'type' => 'message',
+                            'text' => '/clear',
+                        ],
                     ],
                 ],
             ],
-        ],
-        ],
-        ];
+            ],
+            ];
+        } else {
+            $attachments = [];
+            $text = get_string('commanddisabled', 'message_max');
+        }
     }
 
-    $response = $mx->send_api_command(
-        'messages?user_id=' . $fromid . '&disable_link_preview=true',
-        [
+    $params = [
          'text' => $text,
          'format' => 'html',
-         'attachments' => $attachments,
-        ],
+    ];
+    if (!empty($attachments)) {
+        $params['attachments'] = $attachments;
+    }
+    $response = $mx->send_api_command(
+        'messages?user_id=' . $fromid . '&disable_link_preview=true',
+        $params,
         1
     );
 } else if (isset($data->message) && !isset($data->callback)) {
@@ -267,53 +279,86 @@ if (
         } else {
             $mx->send_message('😕 ' . get_string('unknownuser'), $fromid);
         }
-    } else if (strpos($text, '/courses') === 0 && $userid) {
-        $courses = get_courses(null, true);
-        $list = '';
-        foreach ($courses as $course) {
-            if ($course->visible) {
-                if (!$list) {
-                    $buff = '🏰 ';
-                } else {
-                    $buff = '🔸 ';
+    } else if ((strpos($text, '/courses') === 0 || strpos($text, '/enrols') === 0) && $userid) {
+        if (!message_max_is_command_enabled('courses')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $courses = enrol_get_users_courses($userid);
+            $cid = [];
+            $list = '';
+            $showcompletion = !empty($config->sitebotshowcompletion);
+            foreach ($courses as $course) {
+                $cid[$course->id] = true;
+                $url = $CFG->wwwroot . '/course/view.php?id=' . $course->id;
+                $line = PHP_EOL . '• ' . "<a href='{$url}'>" . format_string($course->fullname) . '</a>';
+                if ($showcompletion) {
+                    $progress = \core_completion\progress::get_course_progress_percentage($course, $userid) ?? 0;
+                    if (floor($progress)) {
+                        $line .= ' (' . floor($progress) . '%)';
+                    }
                 }
-                $buff .= '<b>' . format_string($course->fullname, true) . '</b>' . PHP_EOL;
-                if (!empty($course->summary) && mb_strlen($course->summary) + mb_strlen($buff) < 3980) {
-                    $buff .= '<i>  ' . format_string($course->summary, false) . '</i>' . PHP_EOL;
-                }
-                if (!$list) {
-                    $buff .= PHP_EOL;
-                }
-                if (mb_strlen($list) + mb_strlen($buff) < 3980) {
-                    $list .= $buff;
-                } else {
-                    $mx->send_message($list, $userid);
-                    $list = $buff;
+                $list .= $line;
+            }
+
+            if ($showcompletion) {
+                $sql = "
+SELECT DISTINCT c.id, c.fullname
+FROM {course_modules_completion} cmc
+JOIN {course_modules} cm ON cm.id = cmc.coursemoduleid
+JOIN {course} c ON c.id = cm.course
+WHERE cmc.userid = :userid
+ORDER BY c.fullname;
+";
+                $completed = $DB->get_records_sql($sql, ['userid' => $userid]);
+                foreach ($completed as $course) {
+                    if (!empty($cid[$course->id])) {
+                        continue;
+                    }
+                    $list .= PHP_EOL . '• ' . format_string(get_course($course->id)->fullname);
                 }
             }
+
+            if ($list === '') {
+                $list = PHP_EOL . get_string('no') . PHP_EOL;
+            }
+            $mx->send_message(get_string('botenrols', 'message_max') . PHP_EOL . $list, $userid);
         }
-        $mx->send_message($list, $userid);
     } else if (strpos($text, '/help') === 0 && $userid) {
-        $text = null;
-        if ($userid) {
-            $text = get_string('bothelp', 'message_max');
-        } else {
-            $text = get_string('bothelp_anonymous', 'message_max');
+        $lines = [get_string('bothelpheader', 'message_max')];
+        if (message_max_is_command_enabled('info')) {
+            $lines[] = get_string('botinfo', 'message_max');
         }
-        if (file_exists($CFG->dirroot . '/admin/tool/certificate/lib.php')) {
-            $text .= PHP_EOL . get_string('botcertificates', 'message_max');
+        if (message_max_is_command_enabled('lang')) {
+            $lines[] = get_string('botlanghelp', 'message_max');
         }
-        if (!empty($config->aiprovider)) {
-            $text .= PHP_EOL . get_string('botask', 'message_max');
-            $text .= PHP_EOL . get_string('botclear', 'message_max');
+        if (message_max_is_command_enabled('faq')) {
+            $lines[] = get_string('botfaqhelp', 'message_max');
         }
-        if (count($userids) > 1) {
-            $text .= PHP_EOL . get_string('botuseridhelp', 'message_max');
+        if (message_max_is_command_enabled('courses')) {
+            $lines[] = get_string('botcourses', 'message_max');
+        }
+        if (message_max_is_command_enabled('events')) {
+            $lines[] = get_string('boteventshelp', 'message_max');
+        }
+        if (message_max_is_command_enabled('progress')) {
+            $lines[] = get_string('botprogress', 'message_max');
+        }
+        if (message_max_is_command_enabled('certificates') &&
+                file_exists($CFG->dirroot . '/admin/tool/certificate/lib.php')) {
+            $lines[] = get_string('botcertificates', 'message_max');
+        }
+        if (message_max_is_command_enabled('ask') && !empty($config->aiprovider)) {
+            $lines[] = get_string('botask', 'message_max');
+            $lines[] = get_string('botclear', 'message_max');
+        }
+        if (message_max_is_command_enabled('userid') && count($userids) > 1) {
+            $lines[] = get_string('botuseridhelp', 'message_max');
         }
 
         $hasbotstudents = true;
+        $hasbotmessage = true;
         $courses = enrol_get_all_users_courses($userid, true, '*');
-        $roleids = array_map('intval', explode(',', $config->sitebotmsgroles));
+        $roleids = array_map('intval', explode(',', $config->sitebotmsgroles ?? ''));
         foreach ($courses as $course) {
             $context = context_course::instance($course->id);
             $hasrole = false;
@@ -326,39 +371,95 @@ if (
             if (!$hasrole) {
                 continue;
             }
-            if ($config->sitebotenablereports && $hasbotstudents) {
-                $text .= PHP_EOL . get_string('botstudents', 'message_max');
+            if (message_max_is_command_enabled('students') && $config->sitebotenablereports && $hasbotstudents) {
+                $lines[] = get_string('botstudents', 'message_max');
                 $hasbotstudents = false;
             }
-            $groups = groups_get_all_groups($course->id);
-            foreach ($groups as $group) {
-                $members = groups_get_members($group->id, 'u.id');
-                if (isset($members[$userid])) {
-                    $text .= PHP_EOL . get_string('botmessagehelp', 'message_max');
-                    break;
+            if (message_max_is_command_enabled('message') && $hasbotmessage) {
+                $groups = groups_get_all_groups($course->id);
+                foreach ($groups as $group) {
+                    $members = groups_get_members($group->id, 'u.id');
+                    if (isset($members[$userid])) {
+                        $lines[] = get_string('botmessagehelp', 'message_max');
+                        $hasbotmessage = false;
+                        break;
+                    }
                 }
             }
         }
 
-        if (!empty($config->sitebotpay)) {
-            $text .= "\n/pay - " . get_string('botpaytitle', 'message_max');
+        $mx->send_message(implode(PHP_EOL, $lines), $userid);
+    } else if (strpos($text, '/help') === 0) {
+        $lines = [get_string('bothelpheader', 'message_max')];
+        if (message_max_is_command_enabled('info')) {
+            $lines[] = get_string('botinfo', 'message_max');
         }
-
-        $mx->send_message($text, $userid);
+        if (message_max_is_command_enabled('faq')) {
+            $lines[] = get_string('botfaqhelp', 'message_max');
+        }
+        $mx->send_message(implode(PHP_EOL, $lines), $fromid);
     } else if (strpos($text, '/ask') === 0 && $userid) {
-        $question = trim(substr($text, 5));
-        if (empty($question)) {
-            $mx->send_message(get_string('asknoquestion', 'message_max'), $userid);
+        if (!message_max_is_command_enabled('ask')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
         } else {
+            $question = trim(substr($text, 5));
+            if (empty($question)) {
+                $mx->send_message(get_string('asknoquestion', 'message_max'), $userid);
+            } else {
+                if ($config->aiprovider === 'mistral') {
+                    // Check if Mistral AI is configured.
+                    if (empty($config->mistralapikey)) {
+                        $mx->send_message(get_string('mistralnotconfigured', 'message_max'), $userid);
+                    } else {
+                        $ai = new \message_max\mistral_ai();
+                    }
+                } else if ($config->aiprovider === 'openrouter') {
+                    // Check if OpenRouter AI is configured.
+                    if (empty($config->openrouterapikey)) {
+                        $mx->send_message(get_string('openrouternotconfigured', 'message_max'), $userid);
+                    } else {
+                        $ai = new \message_max\openrouter_ai();
+                    }
+                } else if ($config->aiprovider === 'remote') {
+                    $curl = new curl();
+                    $options = [
+                    'CURLOPT_TIMEOUT' => 30,
+                    'CURLOPT_HTTPHEADER' => [
+                    $config->airemoteheader . ': ' . $config->airemotekey,
+                    ],
+                    ];
+                    $params = ['text' => $question, 'chat_id' => $chatid, 'prompt' => $config->airemoteprompt];
+                    $curl->post($config->airemoteurl, $params, $options);
+                } else {
+                    $mx->send_message(get_string('ainotconfigured', 'message_max'), $userid);
+                }
+                if (isset($ai)) {
+                    // Send temporary "thinking" message.
+                    $response = $mx->send_temp_message($fromid);
+                    // Shows the typing indicator.
+                    $mx->send_api_command('chats/' . $chatid . '/actions', ["action" => "typing_on"], 1);
+                    // Send request to Mistral AI with conversation history.
+                    $answer = $ai->chat($question, $userid);
+                    $mx->send_message($answer, $userid, true);
+                    // Delete temporary message.
+                    if (isset($response->message->body->mid)) {
+                        $mx->delete_message($response->message->body->mid);
+                    }
+                }
+            }
+        }
+    } else if (strpos($text, '/clear') === 0 && $userid) {
+        if (!message_max_is_command_enabled('clear')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            // Clear AI conversation history.
             if ($config->aiprovider === 'mistral') {
-                // Check if Mistral AI is configured.
                 if (empty($config->mistralapikey)) {
                     $mx->send_message(get_string('mistralnotconfigured', 'message_max'), $userid);
                 } else {
                     $ai = new \message_max\mistral_ai();
                 }
             } else if ($config->aiprovider === 'openrouter') {
-                // Check if OpenRouter AI is configured.
                 if (empty($config->openrouterapikey)) {
                     $mx->send_message(get_string('openrouternotconfigured', 'message_max'), $userid);
                 } else {
@@ -369,285 +470,249 @@ if (
                 $options = [
                 'CURLOPT_TIMEOUT' => 30,
                 'CURLOPT_HTTPHEADER' => [
-                $config->airemoteheader . ': ' . $config->airemotekey,
+                    $config->airemoteheader . ': ' . $config->airemotekey,
                 ],
                 ];
-                $params = ['text' => $question, 'chat_id' => $chatid, 'prompt' => $config->airemoteprompt];
+                $params = ['text' => '/clear', 'chat_id' => $chatid, 'prompt' => $config->airemoteprompt];
                 $curl->post($config->airemoteurl, $params, $options);
             } else {
                 $mx->send_message(get_string('ainotconfigured', 'message_max'), $userid);
             }
             if (isset($ai)) {
-                // Send temporary "thinking" message.
-                $response = $mx->send_temp_message($fromid);
-                // Shows the typing indicator.
-                $mx->send_api_command('chats/' . $chatid . '/actions', ["action" => "typing_on"], 1);
-                // Send request to Mistral AI with conversation history.
-                $answer = $ai->chat($question, $userid);
-                $mx->send_message($answer, $userid, true);
-                // Delete temporary message.
-                if (isset($response->message->body->mid)) {
-                    $mx->delete_message($response->message->body->mid);
-                }
+                $ai->clear_history($userid);
+                $mx->send_message(get_string('askcleared', 'message_max'), $userid);
             }
-        }
-    } else if (strpos($text, '/clear') === 0 && $userid) {
-        // Clear AI conversation history.
-        if ($config->aiprovider === 'mistral') {
-            if (empty($config->mistralapikey)) {
-                $mx->send_message(get_string('mistralnotconfigured', 'message_max'), $userid);
-            } else {
-                $ai = new \message_max\mistral_ai();
-            }
-        } else if ($config->aiprovider === 'openrouter') {
-            if (empty($config->openrouterapikey)) {
-                $mx->send_message(get_string('openrouternotconfigured', 'message_max'), $userid);
-            } else {
-                $ai = new \message_max\openrouter_ai();
-            }
-        } else if ($config->aiprovider === 'remote') {
-            $curl = new curl();
-            $options = [
-            'CURLOPT_TIMEOUT' => 30,
-            'CURLOPT_HTTPHEADER' => [
-                $config->airemoteheader . ': ' . $config->airemotekey,
-            ],
-            ];
-            $params = ['text' => '/clear', 'chat_id' => $chatid, 'prompt' => $config->airemoteprompt];
-            $curl->post($config->airemoteurl, $params, $options);
-        } else {
-            $mx->send_message(get_string('ainotconfigured', 'message_max'), $userid);
-        }
-        if (isset($ai)) {
-            $ai->clear_history($userid);
-            $mx->send_message(get_string('askcleared', 'message_max'), $userid);
         }
     } else if (strpos($text, '/info') === 0) {
-        $params = [
-            'text' => '<b>' . format_string($SITE->fullname) . '</b>' . "\n🌐 " . $CFG->wwwroot . "\n✉️ " . $CFG->supportemail .
-            ($CFG->supportpage ? "\n🛠 " . $CFG->supportpage : '') .
-            ($CFG->servicespage ? "\n⭐ " . $CFG->servicespage : ''),
-            'format' => 'HTML',
-            ];
-            $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
-    } else if (strpos($text, '/faq') === 0) {
-        $params = [
-            'text' => get_string('botfaq', 'message_max') .
-            ($CFG->supportpage ? "\n$CFG->supportpage" : null) . "\n\n" .
-            format_string(get_string('botfaqtext', 'message_max'), true),
-            'format' => 'HTML',
-            ];
-            $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
-    } else if (strpos($text, '/userid') === 0 && $userid) {
-        $buttons = [];
-        foreach ($userids as $id) {
-            $user = $DB->get_record('user', ['id' => $id]);
-            $buttons[] = [[
-                'text' => fullname($user),
-                'payload' => '/userid ' . $id,
-                'type' => 'callback',
-            ]];
-        }
-        $keyboard = [
-        'type' => 'inline_keyboard',
-        'payload' => ['buttons' => $buttons],
-        ];
-        $params = [
-        'text' => get_string('botuserid', 'message_max', $userid),
-        'attachments' => [$keyboard],
-        ];
-        $response = $mx->send_api_command('messages?user_id=' . $fromid, $params, 1);
-    } else if (strpos($text, '/progress') === 0 && $userid) {
-        $courses = enrol_get_users_courses($userid);
-        $buttons = [];
-        foreach ($courses as $course) {
-            $buttons[] = [[
-                'text' => format_string($course->fullname),
-                'payload' => '/progress ' . $course->id,
-                'type' => 'callback',
-            ]];
-        }
-        $keyboard = [
-        'type' => 'inline_keyboard',
-        'payload' => ['buttons' => $buttons],
-        ];
-        $response = $mx->send_api_command(
-            'messages?user_id=' . $fromid,
-            [
-            'text' => '📊 ' . get_string('selectacourse'),
-            'attachments' => [$keyboard],
-            ],
-            1,
-        );
-    } else if (strpos($text, '/students') === 0 && $userid && $config->sitebotenablereports) {
-        $courses = enrol_get_users_courses($userid);
-        $buttons = [];
-        foreach ($courses as $course) {
-            $buttons[] = [[
-                'text' => format_string($course->fullname),
-                'payload' => '/students ' . $course->id,
-                'type' => 'callback',
-            ]];
-        }
-        $keyboard = [
-        'type' => 'inline_keyboard',
-        'payload' => ['buttons' => $buttons],
-        ];
-        $response = $mx->send_api_command(
-            'messages?user_id=' . $fromid,
-            [
-            'text' => '📚 ' . get_string('selectacourse') . ($buttons ? null : "\n\n" . get_string('none')),
-            'attachments' => [$keyboard],
-            ],
-            1
-        );
-    } else if (strpos($text, '/enrols') === 0 && $userid) {
-        $courses = enrol_get_users_courses($userid);
-        $cid = [];
-        $text = '';
-        foreach ($courses as $course) {
-            $cid[$course->id] = true;
-            $progress = \core_completion\progress::get_course_progress_percentage($course, $userid) ?? 0;
-            $url = $CFG->wwwroot . '/course/view.php?id=' . $course->id;
-            $text .= PHP_EOL . '• ' . "<a href='{$url}'>" . format_string($course->fullname) . '</a>' .
-            (floor($progress) ? ' (' . floor($progress) . '%)' : null);
-        }
-
-        $sql = "
-SELECT DISTINCT c.id, c.fullname
-FROM {course_modules_completion} cmc
-JOIN {course_modules} cm ON cm.id = cmc.coursemoduleid
-JOIN {course} c ON c.id = cm.course
-WHERE cmc.userid = :userid
-ORDER BY c.fullname;
-";
-        $completed = $DB->get_records_sql($sql, ['userid' => $userid]);
-        foreach ($completed as $course) {
-            if ($cid[$course->id]) {
-                continue;
-            }
-            $text .= PHP_EOL . '• ' . format_string(get_course($course->id)->fullname);
-        }
-
-        if (!$courses && !$completed) {
-            $text = PHP_EOL . get_string('no') . PHP_EOL;
-        }
-        $mx->send_message(get_string('botenrols', 'message_max') . PHP_EOL . $text, $userid);
-    } else if (strpos($text, '/events') === 0 && $userid) {
-        $eventtype = ['user' => '📌', 'group' => '🔔', 'course' => '🎓'];
-        $calendar = \calendar_information::create(time(), 0, 0);
-        $view = calendar_get_view($calendar, 'upcoming');
-        $events = $view[0]->events ?? [];
-        $text = null;
-        foreach ($events as $event) {
-            $start = date('d.m.Y H:i', $event->timestart);
-            $end = date('d.m.Y H:i', $event->timestart + $event->timeduration);
-            $duration = $event->timeduration ? '(' . round($event->timeduration / 60) . ' мин)' : '';
-            $text .= $eventtype[$event->eventtype] .
-            " {$start} — <a href='{$event->viewurl}'>" . format_string($event->name) . "</a> {$duration}\n" .
-            ($event->description ? ' ' . get_string('subject') . ': ' .
-            mb_substr(trim(format_string($event->description)), 0, 100, 'UTF-8') . PHP_EOL : null);
-        }
-        $head = get_string('botevents', 'message_max');
-        if ($text) {
-            $text = $head . $text;
+        if (!message_max_is_command_enabled('info')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
         } else {
-            $text = $head . get_string('none');
+            $params = [
+                'text' => '<b>' . format_string($SITE->fullname) . '</b>' . "\n🌐 " . $CFG->wwwroot . "\n✉️ " . $CFG->supportemail .
+                ($CFG->supportpage ? "\n🛠 " . $CFG->supportpage : '') .
+                ($CFG->servicespage ? "\n⭐ " . $CFG->servicespage : ''),
+                'format' => 'HTML',
+                ];
+                $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
         }
-
-        $keyboard = [[
-            'type' => 'inline_keyboard',
-            'payload' => [
-                'buttons' => [
-                    [
-            ['text' => '+ ' . get_string('newevent', 'calendar'), 'type' => 'callback', 'payload' => '/newevent'],
-                    ],
-                ],
-            ],
-        ]];
-        $response = $mx->send_api_command(
-            'messages?user_id=' . $fromid . '&disable_link_preview=true',
-            [
-            'text' => $text,
-            'format' => 'HTML',
-            'attachments' => $keyboard,
-            ],
-            1
-        );
-    } else if (strpos($text, '/lang') === 0 && $userid) {
-        $buttons = [];
-        foreach ($langs as $langcode => $name) {
-            $buttons[] = [[
-                'text' => $name,
-                'payload' => '/lang ' . $langcode,
-                'type' => 'callback',
-            ]];
+    } else if (strpos($text, '/faq') === 0) {
+        if (!message_max_is_command_enabled('faq')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $params = [
+                'text' => get_string('botfaq', 'message_max') .
+                ($CFG->supportpage ? "\n$CFG->supportpage" : null) . "\n\n" .
+                format_string(get_string('botfaqtext', 'message_max'), true),
+                'format' => 'HTML',
+                ];
+                $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
         }
-
-        $keyboard = [[
-        'type' => 'inline_keyboard',
-        'payload' => ['buttons' => $buttons],
-        ]];
-
-        $params = [
-            'text' => get_string(
-                'botlang',
-                'message_max',
-                get_user_preferences('message_processor_max_lang', get_string('none'), $userid),
-            ),
-            'attachments' => $keyboard,
-        ];
-        $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
-    } else if (strpos($text, '/message') === 0 && $userid) {
-        $courses = enrol_get_all_users_courses($userid, false, '*');
-        $buttons = [];
-        foreach ($courses as $course) {
-            $buttons[] = [[
-                'text' => format_string($course->fullname),
-                'payload' => '/message ' . $course->id,
-                'type' => 'callback',
-            ]];
-        }
-        $keyboard = [
+    } else if (strpos($text, '/userid') === 0 && $userid) {
+        if (!message_max_is_command_enabled('userid')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $buttons = [];
+            foreach ($userids as $id) {
+                $user = $DB->get_record('user', ['id' => $id]);
+                $buttons[] = [[
+                    'text' => fullname($user),
+                    'payload' => '/userid ' . $id,
+                    'type' => 'callback',
+                ]];
+            }
+            $keyboard = [
             'type' => 'inline_keyboard',
             'payload' => ['buttons' => $buttons],
-        ];
-        $response = $mx->send_api_command(
-            'messages?user_id=' . $fromid,
-            [
-            'text' => '📚 ' . get_string('selectacourse'),
+            ];
+            $params = [
+            'text' => get_string('botuserid', 'message_max', $userid),
             'attachments' => [$keyboard],
-            ],
-            1
-        );
-    } else if (strpos($text, '/certificates') === 0 && $userid) {
-        $certs = message_max_get_user_certificates($userid);
-        $text = get_string('botcerts', 'message_max');
-        $buff = '';
-        foreach ($certs as $cert) {
-            $buff .= '• ' . "<a href='{$cert['url']}'>{$cert['name']}</a>" . ' — ' . $cert['date'] . PHP_EOL;
+            ];
+            $response = $mx->send_api_command('messages?user_id=' . $fromid, $params, 1);
         }
-        if (!$buff) {
-            $text .= get_string('no');
+    } else if (strpos($text, '/progress') === 0 && $userid) {
+        if (!message_max_is_command_enabled('progress')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
         } else {
-            $text .= $buff;
-        }
-        $keyboard = [
+            $courses = enrol_get_users_courses($userid);
+            $buttons = [];
+            foreach ($courses as $course) {
+                $buttons[] = [[
+                    'text' => format_string($course->fullname),
+                    'payload' => '/progress ' . $course->id,
+                    'type' => 'callback',
+                ]];
+            }
+            $keyboard = [
             'type' => 'inline_keyboard',
-            'payload' => [ 'buttons' => [[[
-            'text' => get_string('botcertdownload', 'message_max'),
-            'payload' => '/getcert',
-            'type' => 'callback',
-            ]]]],
+            'payload' => ['buttons' => $buttons],
             ];
-        $params = [
-            'text' => $text,
-            'format' => 'HTML',
-            ];
-        if ($buff) {
-            $params['attachments'] = [$keyboard];
+            $response = $mx->send_api_command(
+                'messages?user_id=' . $fromid,
+                [
+                'text' => '📊 ' . get_string('selectacourse'),
+                'attachments' => [$keyboard],
+                ],
+                1,
+            );
         }
-        $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
+    } else if (strpos($text, '/students') === 0 && $userid && $config->sitebotenablereports) {
+        if (!message_max_is_command_enabled('students')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $courses = enrol_get_users_courses($userid);
+            $buttons = [];
+            foreach ($courses as $course) {
+                $buttons[] = [[
+                    'text' => format_string($course->fullname),
+                    'payload' => '/students ' . $course->id,
+                    'type' => 'callback',
+                ]];
+            }
+            $keyboard = [
+            'type' => 'inline_keyboard',
+            'payload' => ['buttons' => $buttons],
+            ];
+            $response = $mx->send_api_command(
+                'messages?user_id=' . $fromid,
+                [
+                'text' => '📚 ' . get_string('selectacourse') . ($buttons ? null : "\n\n" . get_string('none')),
+                'attachments' => [$keyboard],
+                ],
+                1
+            );
+        }
+    } else if (strpos($text, '/events') === 0 && $userid) {
+        if (!message_max_is_command_enabled('events')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $eventtype = ['user' => '📌', 'group' => '🔔', 'course' => '🎓'];
+            $calendar = \calendar_information::create(time(), 0, 0);
+            $view = calendar_get_view($calendar, 'upcoming');
+            $events = $view[0]->events ?? [];
+            $text = null;
+            foreach ($events as $event) {
+                $start = date('d.m.Y H:i', $event->timestart);
+                $end = date('d.m.Y H:i', $event->timestart + $event->timeduration);
+                $duration = $event->timeduration ? '(' . round($event->timeduration / 60) . ' мин)' : '';
+                $text .= $eventtype[$event->eventtype] .
+                " {$start} — <a href='{$event->viewurl}'>" . format_string($event->name) . "</a> {$duration}\n" .
+                ($event->description ? ' ' . get_string('subject') . ': ' .
+                mb_substr(trim(format_string($event->description)), 0, 100, 'UTF-8') . PHP_EOL : null);
+            }
+            $head = get_string('botevents', 'message_max');
+            if ($text) {
+                $text = $head . $text;
+            } else {
+                $text = $head . get_string('none');
+            }
+
+            $keyboard = [[
+                'type' => 'inline_keyboard',
+                'payload' => [
+                    'buttons' => [
+                        [
+                ['text' => '+ ' . get_string('newevent', 'calendar'), 'type' => 'callback', 'payload' => '/newevent'],
+                        ],
+                    ],
+                ],
+            ]];
+            $response = $mx->send_api_command(
+                'messages?user_id=' . $fromid . '&disable_link_preview=true',
+                [
+                'text' => $text,
+                'format' => 'HTML',
+                'attachments' => $keyboard,
+                ],
+                1
+            );
+        }
+    } else if (strpos($text, '/lang') === 0 && $userid) {
+        if (!message_max_is_command_enabled('lang')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $buttons = [];
+            foreach ($langs as $langcode => $name) {
+                $buttons[] = [[
+                    'text' => $name,
+                    'payload' => '/lang ' . $langcode,
+                    'type' => 'callback',
+                ]];
+            }
+
+            $keyboard = [[
+            'type' => 'inline_keyboard',
+            'payload' => ['buttons' => $buttons],
+            ]];
+
+            $params = [
+                'text' => get_string(
+                    'botlang',
+                    'message_max',
+                    get_user_preferences('message_processor_max_lang', get_string('none'), $userid),
+                ),
+                'attachments' => $keyboard,
+            ];
+            $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
+        }
+    } else if (strpos($text, '/message') === 0 && $userid) {
+        if (!message_max_is_command_enabled('message')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $courses = enrol_get_all_users_courses($userid, false, '*');
+            $buttons = [];
+            foreach ($courses as $course) {
+                $buttons[] = [[
+                    'text' => format_string($course->fullname),
+                    'payload' => '/message ' . $course->id,
+                    'type' => 'callback',
+                ]];
+            }
+            $keyboard = [
+                'type' => 'inline_keyboard',
+                'payload' => ['buttons' => $buttons],
+            ];
+            $response = $mx->send_api_command(
+                'messages?user_id=' . $fromid,
+                [
+                'text' => '📚 ' . get_string('selectacourse'),
+                'attachments' => [$keyboard],
+                ],
+                1
+            );
+        }
+    } else if (strpos($text, '/certificates') === 0 && $userid) {
+        if (!message_max_is_command_enabled('certificates')) {
+            message_max_notify_command_disabled($mx, $userid, $fromid);
+        } else {
+            $certs = message_max_get_user_certificates($userid);
+            $text = get_string('botcerts', 'message_max');
+            $buff = '';
+            foreach ($certs as $cert) {
+                $buff .= '• ' . "<a href='{$cert['url']}'>{$cert['name']}</a>" . ' — ' . $cert['date'] . PHP_EOL;
+            }
+            if (!$buff) {
+                $text .= get_string('no');
+            } else {
+                $text .= $buff;
+            }
+            $keyboard = [
+                'type' => 'inline_keyboard',
+                'payload' => [ 'buttons' => [[[
+                'text' => get_string('botcertdownload', 'message_max'),
+                'payload' => '/getcert',
+                'type' => 'callback',
+                ]]]],
+                ];
+            $params = [
+                'text' => $text,
+                'format' => 'HTML',
+                ];
+            if ($buff) {
+                $params['attachments'] = [$keyboard];
+            }
+            $response = $mx->send_api_command('messages?user_id=' . $fromid . '&disable_link_preview=true', $params, 1);
+        }
     } else if (isset($data->message->successful_payment)) {
         http_response_code(200);
         echo "OK";
@@ -815,7 +880,7 @@ ORDER BY c.fullname;
             $mx->delete_message($tmpmsg->message->body->mid);
         }
     } else if ($text && $userid) {
-        if ($config->aiprovider == 'remote' && !empty($config->airemotekey)) {
+        if (message_max_is_command_enabled('ask') && $config->aiprovider == 'remote' && !empty($config->airemotekey)) {
             $curl = new curl();
             $options = [
             'CURLOPT_TIMEOUT' => 30,
@@ -825,7 +890,7 @@ ORDER BY c.fullname;
             ];
             $params = ['text' => $text, 'chat_id' => $chatid, 'prompt' => $config->airemoteprompt];
             $curl->post($config->airemoteurl, $params, $options);
-        } else if ($config->aiprovider == 'mistral' && !empty($config->mistralapikey)) {
+        } else if (message_max_is_command_enabled('ask') && $config->aiprovider == 'mistral' && !empty($config->mistralapikey)) {
             // Send temporary "thinking" message.
             $tmpmsg = $mx->send_temp_message($fromid);
             // Shows the typing indicator.
@@ -894,7 +959,13 @@ ORDER BY c.fullname;
         }
     }
 
-    if (strpos($data->callback->payload, '/lang') === 0 && $lang = substr($data->callback->payload, 6)) {
+    $callbackcmd = '';
+    if (preg_match('/^\/([a-z]+)/', (string)$data->callback->payload, $callbackmatches)) {
+        $callbackcmd = $callbackmatches[1];
+    }
+    if ($callbackcmd !== '' && !message_max_is_command_enabled($callbackcmd)) {
+        message_max_notify_command_disabled($mx, $userid, $fromid);
+    } else if (strpos($data->callback->payload, '/lang') === 0 && $lang = substr($data->callback->payload, 6)) {
         $languages = [
         'ru' => ['flag' => '🇷🇺'],
         'en' => ['flag' => '🇺🇸'],

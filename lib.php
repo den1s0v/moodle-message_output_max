@@ -268,3 +268,69 @@ function message_max_send_menu($mx, $chatid, $text) {
     );
     return $response;
 }
+
+/**
+ * Check whether a bot slash-command is enabled in plugin settings.
+ *
+ * /start and /help are always enabled. /enrols aliases /courses. /clear aliases /ask.
+ * /progress also requires sitebotshowcompletion.
+ *
+ * @param string $command Command name with or without leading slash.
+ * @return bool
+ */
+function message_max_is_command_enabled(string $command): bool {
+    $command = ltrim(strtolower(trim($command)), '/');
+    // Strip arguments: "courses 12" -> "courses".
+    if (preg_match('/^([a-z]+)/', $command, $matches)) {
+        $command = $matches[1];
+    }
+
+    if ($command === 'start' || $command === 'help') {
+        return true;
+    }
+
+    if ($command === 'enrols') {
+        $command = 'courses';
+    }
+    if ($command === 'clear') {
+        $command = 'ask';
+    }
+    if ($command === 'newevent') {
+        $command = 'events';
+    }
+    if ($command === 'getcert') {
+        $command = 'certificates';
+    }
+
+    if ($command === 'progress' && empty(get_config('message_max', 'sitebotshowcompletion'))) {
+        return false;
+    }
+
+    $enabled = get_config('message_max', 'sitebotcommands');
+    if ($enabled === false || $enabled === null || $enabled === '') {
+        return false;
+    }
+
+    $list = array_map('trim', explode(',', $enabled));
+    return in_array($command, $list, true);
+}
+
+/**
+ * Notify user that a bot command is disabled.
+ *
+ * @param object   $mx     MAX manager.
+ * @param int|null $userid Moodle user id if linked.
+ * @param int      $fromid MAX user id.
+ * @return mixed
+ */
+function message_max_notify_command_disabled($mx, $userid, $fromid) {
+    $text = get_string('commanddisabled', 'message_max');
+    if (!empty($userid)) {
+        return $mx->send_message($text, $userid);
+    }
+    return $mx->send_api_command(
+        'messages?user_id=' . $fromid,
+        ['text' => $text],
+        1
+    );
+}

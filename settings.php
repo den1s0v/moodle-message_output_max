@@ -221,6 +221,48 @@ if ($ADMIN->fulltree) {
     ));
 
     $settings->add(new admin_setting_heading(
+        'message_max_botcommands',
+        get_string('botcommandsheading', 'message_max'),
+        null,
+    ));
+
+    $cmdoptions = [
+        'info' => get_string('botcmd_info', 'message_max'),
+        'faq' => get_string('botcmd_faq', 'message_max'),
+        'lang' => get_string('botcmd_lang', 'message_max'),
+        'courses' => get_string('botcmd_courses', 'message_max'),
+        'progress' => get_string('botcmd_progress', 'message_max'),
+        'events' => get_string('botcmd_events', 'message_max'),
+        'certificates' => get_string('botcmd_certificates', 'message_max'),
+        'message' => get_string('botcmd_message', 'message_max'),
+        'students' => get_string('botcmd_students', 'message_max'),
+        'userid' => get_string('botcmd_userid', 'message_max'),
+        'ask' => get_string('botcmd_ask', 'message_max'),
+    ];
+    $settings->add(new admin_setting_configmulticheckbox(
+        'message_max/sitebotcommands',
+        get_string('sitebotcommands', 'message_max'),
+        get_string('sitebotcommands_desc', 'message_max'),
+        [],
+        $cmdoptions
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'message_max/sitebotshowcompletion',
+        get_string('sitebotshowcompletion', 'message_max'),
+        get_string('sitebotshowcompletion_desc', 'message_max'),
+        0
+    ));
+
+    $miniappurl = $CFG->wwwroot . '/message/output/max/miniapp.php';
+    $settings->add(new admin_setting_configcheckbox(
+        'message_max/sitebotenableminiapp',
+        get_string('sitebotenableminiapp', 'message_max'),
+        get_string('sitebotenableminiapp_desc', 'message_max', $miniappurl),
+        0
+    ));
+
+    $settings->add(new admin_setting_heading(
         'message_max_standart',
         get_string('configuration', 'core'),
         null,

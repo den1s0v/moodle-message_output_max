@@ -60,34 +60,46 @@ $string['botcerts'] = '📜 Your certificates:
 $string['botcertselect'] = '📥 Select a certificate';
 $string['botcertyour'] = '💾 Your certificate';
 $string['botclear'] = '/clear - clear AI conversation history';
-$string['botenrols'] = '🎓 Participation in courses:';
+$string['botcmd_ask'] = '/ask and /clear (AI assistant)';
+$string['botcmd_certificates'] = '/certificates';
+$string['botcmd_courses'] = '/courses';
+$string['botcmd_events'] = '/events';
+$string['botcmd_faq'] = '/faq';
+$string['botcmd_info'] = '/info';
+$string['botcmd_lang'] = '/lang';
+$string['botcmd_message'] = '/message';
+$string['botcmd_progress'] = '/progress (requires completion display)';
+$string['botcmd_students'] = '/students';
+$string['botcmd_userid'] = '/userid';
+$string['botcommandsheading'] = 'Bot commands';
+$string['botcourses'] = '/courses - my courses';
+$string['botenrols'] = '🎓 My courses:
+';
 $string['botentertext'] = '✏️ Enter your message text';
 $string['botevents'] = '🗓 Upcoming Events:
 
 ';
+$string['boteventshelp'] = '/events - upcoming events';
 $string['botfaq'] = '⁉️ Frequently Asked Questions:';
+$string['botfaqhelp'] = '/faq - frequently asked questions';
 $string['botfaqtext'] = '';
-$string['bothelp'] = '👓 Helps
-/info - platform information
-/faq  - frequently asked questions
-/lang - language switching
-/courses - course list
-/events - upcoming
-/enrols - participation in courses
-/progress - status of course elements';
-$string['bothelp_anonymous'] = '👓 Helps
-/info - platform information
-/faq  - frequently asked questions';
+$string['bothelp'] = '👓 Helps';
+$string['bothelp_anonymous'] = '👓 Helps';
+$string['bothelpheader'] = '👓 Helps';
 $string['botidontknow'] = 'I dont know what this is 🤷🏻 /help';
+$string['botinfo'] = '/info - platform information';
 $string['botlang'] = '🈯 Select language ({$a})';
+$string['botlanghelp'] = '/lang - language switching';
 $string['botmessagehelp'] = '/message - send group message';
 $string['botmsgall'] = 'To all students';
 $string['botpay'] = '🏦 Select amount {$a}';
 $string['botpaydesc'] = 'To support the learning platform';
 $string['botpaytitle'] = 'Donation 🕉';
+$string['botprogress'] = '/progress - status of course elements';
 $string['botstudents'] = '/students - personal data report';
 $string['botuserid'] = '👑 User ID: {$a}';
 $string['botuseridhelp'] = '/userid - select user';
+$string['commanddisabled'] = '❌ This command is disabled. /help';
 $string['configfullmessagehtml'] = 'Get message from "$eventdata->fullmessagehtml" (if available), or from "fullmessage" if not set.';
 $string['configmaxlog'] = 'Write debug info into {$a}/max.log file.';
 $string['configmaxlogdump'] = 'For debugging purposes, write the message to a log file.';
@@ -192,13 +204,20 @@ unique bot username, for example "{$a->username}".';
 $string['setwebhook'] = 'Setup MAX webhook';
 $string['setwebhooksuccess'] = 'Webhook is set successfully';
 $string['sitebotaddtogroup'] = 'Invite new user to news channel or group';
+$string['sitebotcommands'] = 'Enabled bot commands';
+$string['sitebotcommands_desc'] = 'Select which bot commands users may use. /start and /help are always available. By default none of the optional commands are enabled.';
+$string['sitebotenableminiapp'] = 'Enable mini-app';
+$string['sitebotenableminiapp_desc'] = 'Allow access to the MAX mini-app. Canonical URL: {$a}';
 $string['sitebotname'] = 'Bot name for site';
 $string['sitebotpay'] = 'Payment token';
 $string['sitebotpaycosts'] = 'Predefined amounts';
 $string['sitebotsecret'] = 'Webhook secret';
+$string['sitebotshowcompletion'] = 'Show course completion';
+$string['sitebotshowcompletion_desc'] = 'Show completion percentage in /courses and enable /progress. Disabled by default.';
 $string['sitebottoken'] = 'Bot token for site';
 $string['sitebottokennotsetup'] = 'Bot token for site must be specified in plugin settings.';
 $string['sitebotusername'] = 'Bot username for site';
+$string['miniappdisabled'] = 'Mini-app is disabled';
 $string['striptags'] = 'Strip tags';
 $string['tgext'] = 'Path to external sender';
 $string['unsetwebhook'] = 'Unset MAX webhook';
